@@ -1,11 +1,14 @@
 """Solving the sliding puzzle (or 8-puzzle) with local search. You are going to
 implement the heuristics seen at the lecture, hill climbing, and tabu search.
 The states are row-major flattened versions of the puzzle.
+
 The strategy I recommend is to implement the simplest heuristic (# of misplaced
 tiles) and the simpler search algorithm (hill climbing) first, check that they
 work on easier puzzles, and continue with the rest of the heuristics and tabu
 search.
+
 You only need to modify the code in the "YOUR CODE HERE" sections. """
+
 import random
 from functools import partial
 
@@ -16,7 +19,7 @@ import framework.PySimpleGUI as sg
 from framework.gui import BoardGUI
 from framework.board import Board, Position
 
-BLANK_IMAGE_PATH = 'tiles/chess_blank_scaled.png'
+BLANK_IMAGE_PATH = "tiles/chess_blank_scaled.png"
 
 """The state is a tuple with 9 integers. For convenience we just define it as a
 tuple of integers."""
@@ -46,10 +49,18 @@ class SlidingProblem:
 
     def __init__(self, start_permutations: int = 10):
         self.goal = goal
-        self.nil = (0, ) * 9
-        self.possible_slides = ((1, 3), (-1, 1, 3), (-1, 3), (-3, 1, 3),
-                                (-1, 1, -3, 3), (-1, -3, 3), (1, -3),
-                                (-1, 1, -3), (-1, -3))
+        self.nil = (0,) * 9
+        self.possible_slides = (
+            (1, 3),
+            (-1, 1, 3),
+            (-1, 3),
+            (-3, 1, 3),
+            (-1, 1, -3, 3),
+            (-1, -3, 3),
+            (1, -3),
+            (-1, 1, -3),
+            (-1, -3),
+        )
         self.start = self.generate_start_state(start_permutations)
 
     def start_state(self) -> State:
@@ -60,7 +71,7 @@ class SlidingProblem:
         empty_ind = state.index(0)
         slides = self.possible_slides[empty_ind]
         for s in slides:
-            ns.add(self._switch(state, empty_ind, empty_ind + s))
+            ns.add(self.switch(state, empty_ind, empty_ind + s))
         return ns
 
     def is_goal_state(self, state: State) -> bool:
@@ -71,14 +82,14 @@ class SlidingProblem:
         for i in range(num_permutations):
             empty_ind = start.index(0)
             slides = self.possible_slides[empty_ind]
-            start = self._switch(start, empty_ind,
-                                empty_ind + random.choice(slides))
+            start = self.switch(start, empty_ind, empty_ind + random.choice(slides))
         return start
 
-    def _switch(self, current: State, first: Position, second: Position) -> State:
+    def switch(self, current: State, first: Position, second: Position) -> State:
         new = list(current)
         new[first], new[second] = new[second], new[first]
         return tuple(new)
+
 
 # YOUR CODE HERE
 
@@ -103,7 +114,14 @@ def hill_climbing(
     while not problem.is_goal_state(current):
         yield current
         next_states = problem.next_states(current)
-        # if with three branches
+        if not next_states:
+            return False
+        elif not (next_states - {parent}):
+            current, parent = parent, current
+        else:
+            new = min(next_states - {parent}, key=f)
+            parent = current
+            current = new
     yield current
     return None
 
@@ -128,21 +146,58 @@ def tabu_search(
     long_time : int
       If the optimum has not changed in 'long_time' steps, the algorithm stops.
     """
-    pass
+    current, opt, tabu = (
+        problem.start_state(),
+        problem.start_state(),
+        [problem.start_state()],
+    )
+    since_opt_changed = 0
+    while not (problem.is_goal_state(current) or since_opt_changed > long_time):
+        yield current
+        since_opt_changed += 1
+        next_states = problem.next_states(current)
+        if not next_states:
+            return False
+        elif not (next_states - set(tabu)):
+            current = min(next_states, key=f)
+        else:
+            current = min(next_states - set(tabu), key=f)
+        tabu.append(current)
+        if len(tabu) > tabu_len:
+            tabu.pop(0)
+        if f(current) < f(opt):
+            opt = current
+            since_opt_changed = 0
+    yield current
+    return None
+
 
 # heuristics
 
 
 def misplaced(state: State) -> int:
-    return 0
+    return sum(i != j for i, j in zip(state, goal) if i != 0)
+
+
+goal_rows, goal_cols = zip(*((goal.index(i) // 3, goal.index(i) % 3) for i in range(9)))
 
 
 def manhattan(state: State) -> int:
-    return 0
+    return sum(
+        abs(i // 3 - goal_rows[num]) + abs(i % 3 - goal_cols[num])
+        for i, num in enumerate(state)
+        if num != 0
+    )
+
+
+edges = (1, 3, 5, 7)
+corners = (0, 2, 6, 8)
 
 
 def frame(state: State) -> int:
-    return 0
+    corner_sum = sum(state[i] != goal[i] for i in corners)
+    edge_sum = sum(state[i] != goal[i] for i in edges)
+    return edge_sum + 2 * corner_sum
 
 
 # END OF YOUR CODE
