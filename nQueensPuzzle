@@ -1,0 +1,338 @@
+"""The n queens puzzle: put down n queens on an n by n chessboard so no two
+queens attack each other.
+
+The state will be the whole chessboard in these exercises to make implementation
+easier.
+
+Implement the BT1 search first, then the two additional state spaces.
+
+"""
+
+from enum import Flag
+
+import copy
+from functools import partial
+
+from typing import Any, Generator, List, Mapping, Optional, Tuple, Type, Union
+from abc import ABC, abstractmethod
+
+import framework.PySimpleGUI as sg
+
+from framework.board import Board
+from framework.gui import BoardGUI
+
+QUEEN_IMAGE_PATH = "tiles/queen_scaled.png"
+BLANK_IMAGE_PATH = "tiles/chess_blank_scaled.png"
+IMAGE_SIZE = (64, 64)
+
+sg.ChangeLookAndFeel("SystemDefault")
+
+QueensFields = Flag("QueensFields", "W B Q U")
+
+
+class ChessBoard(Board):
+    """The representation of the chessboard. In our search problem, the state is the
+    chessboard."""
+
+    def _default_state_for_coordinates(self, i: int, j: int) -> QueensFields:
+        # white or black
+        return QueensFields.W if (i + j) % 2 == 0 else QueensFields.B
+
+    def is_under_attack(self, row_ind: int, col_ind: int) -> bool:
+        """Checks whether a field is under attack."""
+        for i, row in enumerate(self.board):
+            for j, field in enumerate(row):
+                if not (row_ind == i and col_ind == j):
+                    if field & QueensFields.Q:
+                        if (
+                            row_ind == i
+                            or col_ind == j
+                            or abs(row_ind - i) == abs(col_ind - j)
+                        ):
+                            return True
+        return False
+
+    def update_attack(self) -> None:
+        """Updates the whole board with all the attacked squares of the queens on the board."""
+        for row_ind, row in enumerate(self.board):
+            for col_ind, field in enumerate(row):
+                if self.is_under_attack(row_ind, col_ind):
+                    self.board[row_ind][col_ind] = field | QueensFields.U
+                else:
+                    self.board[row_ind][col_ind] = field & ~QueensFields.U
+
+    def nqueens(self) -> int:
+        """Returns the number of queens on the board."""
+        return sum(1 for row in self.board for field in row if field & QueensFields.Q)
+
+
+class QueensProblem(ABC):
+    """The abstract n-queens problem. All of the search problems are subclassed from
+    this class."""
+
+    def __init__(self, n: int):
+        self.n = n
+        self.board = ChessBoard(n, n)
+
+    def start_state(self) -> Board:
+        """Returns the start state."""
+        return self.board
+
+    def is_goal_state(self, state: Board) -> bool:
+        """Returns true is state is a goal state, false otherwise."""
+        board = state
+        nqueens = 0
+        for i, row in enumerate(board):
+            for j, field in enumerate(row):
+                if field & QueensFields.Q:
+                    if board.is_under_attack(i, j):
+                        return False
+                    else:
+                        nqueens += 1
+        return nqueens == self.n
+
+    @abstractmethod
+    def next_states(self, state: Board) -> Generator[Board, None, None]:
+        """Returns the possible next states for state.
+        This will be different in the different search problems."""
+        pass
+
+    def _to_drawable(self, state: Board) -> Board:
+        """As the state is a board, we can just return it as it's already drawable."""
+        return state
+
+
+class QueensProblemNoAttack(QueensProblem):
+    """This search problem doesn't check attacks and puts Queens arbitrarily on the board."""
+
+    def next_states(self, state: Board) -> Generator[Board, None, None]:
+        board = state
+        if board.nqueens() >= self.n:
+            return None
+        for i, row in enumerate(board):
+            for j, field in enumerate(row):
+                if not (field & QueensFields.Q):
+                    next_board = copy.deepcopy(board)
+                    next_board[i, j] = next_board[i, j] | QueensFields.Q
+                    next_board.update_attack()
+                    yield next_board
+
+
+# YOUR CODE HERE
+
+# The state for the row-by-row search problem will be a board and the current
+# row
+RowByRowState = Tuple[Board, int]
+
+# SEARCH
+
+# implement the BT1 algorithm
+#
+# Make it possible to show the steps taken by the algorithm, not just the
+# solution. At first you can start by only finding the solution, then extend the
+# algorithm with so it also returns the steps. You don't have to store the arcs,
+# it's enough to store the states
+
+
+# the state in backtrack can be either a Board or a combination of a Board and
+# the current row
+State = Union[Board, RowByRowState]
+
+
+def backtrack(
+    problem: QueensProblem, step_by_step: bool = False
+) -> Optional[Generator[State, None, None]]:
+    """The BT1 algorithm implemented recursively with an inner funcion."""
+    state = problem.start_state()
+    path = []
+
+    def backtrack_recursive(state: State) -> Optional[List[State]]:
+        """The inner function that implements BT1."""
+        # WRITE CODE HERE
+        pass
+
+    result = backtrack_recursive(state)
+    # WRITE CODE HERE
+
+
+# SEARCH PROBLEMS (STATE SPACES)
+# implement the "next_states" methods
+
+
+class QueensProblemAttack(QueensProblem):
+    """This search problem checks attacks, but puts Queens arbitrarily on the board."""
+
+    def next_states(self, state: Board) -> Generator[Board, None, None]:
+        pass
+
+
+class QueensProblemRowByRow(QueensProblem):
+    """This search problem checks attacks and puts queens on the board row by row.
+    The state is the board and the next row to put a queen in."""
+
+    def start_state(self) -> RowByRowState:
+        return self.board, 0
+
+    def next_states(self, state: RowByRowState) -> Generator[RowByRowState, None, None]:
+        (
+            board,
+            row_ind,
+        ) = state  # the state consists of a board and the row index of the next row in which there is no queen
+        pass
+
+    def is_goal_state(self, state: RowByRowState) -> bool:
+        board, row_ind = state
+        return row_ind == board.m
+
+    def _to_drawable(self, state: RowByRowState) -> Board:
+        board, row_ind = state
+        return board
+
+
+# END OF YOUR CODE
+
+
+queens_draw_dict = {
+    QueensFields.W: ("", ("black", "white"), BLANK_IMAGE_PATH),
+    QueensFields.B: ("", ("black", "lightgrey"), BLANK_IMAGE_PATH),
+    QueensFields.U | QueensFields.W: ("", ("black", "red"), BLANK_IMAGE_PATH),
+    QueensFields.U | QueensFields.B: ("", ("black", "#700000"), BLANK_IMAGE_PATH),
+    QueensFields.W | QueensFields.Q: ("", ("black", "white"), QUEEN_IMAGE_PATH),
+    QueensFields.B | QueensFields.Q: ("", ("black", "lightgrey"), QUEEN_IMAGE_PATH),
+    QueensFields.U
+    | QueensFields.W
+    | QueensFields.Q: ("", ("black", "white"), QUEEN_IMAGE_PATH),
+    QueensFields.U
+    | QueensFields.B
+    | QueensFields.Q: ("", ("black", "lightgrey"), QUEEN_IMAGE_PATH),
+}
+
+algorithms = {
+    "Backtrack - step by step": partial(backtrack, step_by_step=True),
+    "Backtrack - just the solution": backtrack,
+}
+
+state_spaces: Mapping[str, Type[QueensProblem]] = {
+    "Don't check attacks": QueensProblemNoAttack,
+    "Check attacks": QueensProblemAttack,
+    "Row by row": QueensProblemRowByRow,
+}
+
+board_sizes = {"4x4": 4, "6x6": 6, "8x8": 8, "10x10": 10}
+
+
+def create_window(board_gui):
+
+    layout = [
+        [sg.Column(board_gui.board_layout)],
+        [
+            sg.Frame(
+                "Algorithm settings",
+                [
+                    [
+                        sg.T("Algorithm: ", size=(12, 1)),
+                        sg.Combo(
+                            [
+                                "Backtrack - just the solution",
+                                "Backtrack - step by step",
+                            ],
+                            key="algorithm",
+                            readonly=True,
+                        ),
+                    ],
+                    [
+                        sg.T("State space: ", size=(12, 1)),
+                        sg.Combo(
+                            ["Don't check attacks", "Check attacks", "Row by row"],
+                            key="state_space",
+                            readonly=True,
+                        ),
+                    ],
+                    [sg.Button("Change", key="change_algorithm")],
+                ],
+            ),
+            sg.Frame(
+                "Problem settings",
+                [
+                    [
+                        sg.T("Board size: ", size=(12, 1)),
+                        sg.Combo(
+                            ["4x4", "6x6", "8x8", "10x10"],
+                            key="board_size",
+                            readonly=True,
+                        ),
+                    ],
+                    [sg.Button("Change", key="change_problem")],
+                ],
+            ),
+        ],
+        [sg.T("Steps: "), sg.T("0", key="steps", size=(7, 1), justification="right")],
+        [sg.Button("Restart"), sg.Button("Step"), sg.Button("Go!"), sg.Button("Exit")],
+    ]
+
+    window = sg.Window(
+        "N queens problem",
+        layout,
+        default_button_element_size=(10, 1),
+        auto_size_buttons=False,
+    )
+    return window
+
+
+starting = True
+go = False
+steps = 0
+
+board_size = 4
+board_gui = BoardGUI(ChessBoard(board_size, board_size), queens_draw_dict)
+window = create_window(board_gui)
+
+while True:  # Event Loop
+    event, values = window.Read(0)
+    window.Element("Go!").Update(text="Stop!" if go else "Go!")
+    if event is None or event == "Exit":
+        break
+    if event == "change_algorithm" or starting:
+        queens_problem = state_spaces[values["state_space"]](board_size)
+        algorithm: Any = algorithms[values["algorithm"]]
+        board_gui.board = queens_problem.board
+        path = algorithm(queens_problem)
+        steps = 0
+        starting = False
+        stepping = True
+    if event == "change_problem":
+        board_size = board_sizes[values["board_size"]]
+        queens_problem = state_spaces[values["state_space"]](board_size)
+        board_gui.board = queens_problem.board
+        board_gui.create()
+        path = algorithm(queens_problem)
+        steps = 0
+        window.Close()
+        window = create_window(board_gui)
+        window.Finalize()
+        window.Element("algorithm").Update(values["algorithm"])
+        window.Element("state_space").Update(values["state_space"])
+        window.Element("board_size").Update(values["board_size"])
+        stepping = True
+        continue
+    if event == "Restart":
+        queens_problem = state_spaces[values["state_space"]](board_size)
+        board_gui.board = queens_problem.board
+        path = algorithm(queens_problem)
+        steps = 0
+        stepping = True
+    if (event == "Step" or go or stepping) and path:
+        try:
+            state = next(path)
+            steps += 1
+            window.Element("steps").Update(f"{steps}")
+        except StopIteration:
+            pass
+        board = queens_problem._to_drawable(state)
+        board_gui.board = board
+        board_gui.update()
+        stepping = False
+    if event == "Go!":
+        go = not go
+
+window.Close()
