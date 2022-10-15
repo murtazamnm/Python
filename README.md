@@ -1,2 +1,1 @@
-# Python_Beginner
-# basic python methods
+#Python_Practice
